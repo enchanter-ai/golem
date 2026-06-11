@@ -1,0 +1,25 @@
+# CODEOWNERS for golem
+#
+# Order matters: the LAST matching pattern for a path wins. These owners are
+# requested for review automatically on any pull request touching the path.
+
+# Default owner for everything in the repo.
+*                       @enchanter-ai/golem-maintainers
+
+# Go core — the production surface.
+*.go                    @enchanter-ai/golem-maintainers
+/go.mod                 @enchanter-ai/golem-maintainers
+/go.sum                 @enchanter-ai/golem-maintainers
+
+# Python binding (tier-2).
+/python/                @enchanter-ai/golem-maintainers
+/examples/python/       @enchanter-ai/golem-maintainers
+
+# CI / packaging.
+/.github/               @enchanter-ai/golem-maintainers
+
+# Docs and OSS hygiene.
+/docs/                  @enchanter-ai/golem-maintainers
+/README.md              @enchanter-ai/golem-maintainers
+/CHANGELOG.md           @enchanter-ai/golem-maintainers
+/SECURITY.md            @enchanter-ai/golem-maintainers
