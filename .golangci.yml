@@ -1,0 +1,35 @@
+# golangci-lint configuration for golem.
+#
+# Pinned to the golangci-lint version in .github/workflows/ci.yml
+# (GOLANGCI_LINT_VERSION, currently v1.61.0 — v1 config schema).
+#
+# This file makes the linters the project relies on EXPLICIT rather than
+# leaning on golangci-lint's shifting defaults. All linters below ship with
+# golangci-lint; staticcheck also runs as a standalone CI job, and that is
+# intentional (the two surfaces use different versions / configs).
+
+run:
+  timeout: 5m
+
+linters:
+  # Disable the default set and enable exactly what we rely on, so a
+  # golangci-lint version bump cannot silently add or drop a linter.
+  disable-all: true
+  enable:
+    - govet        # standard go vet analyzers
+    - staticcheck  # SA/ST/QF static analysis (also a standalone CI job)
+    - errcheck     # unchecked errors
+    - ineffassign  # ineffectual assignments
+    - unused       # unused constants, variables, functions, types
+    - gosec        # security-focused static analysis
+
+linters-settings:
+  gosec:
+    # Keep the default rule set; do not exclude rules here so new findings
+    # surface. Suppress individual false positives with inline //nolint:gosec.
+    excludes: []
+
+issues:
+  # Show all findings; do not cap per-linter / per-source output.
+  max-issues-per-linter: 0
+  max-same-issues: 0
