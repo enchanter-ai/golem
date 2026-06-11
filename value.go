@@ -105,12 +105,12 @@ func (v Value) AsInt() (int64, error) {
 		if uint64(n) > math.MaxInt64 {
 			return 0, &OverflowError{Op: "conversion", Detail: fmt.Sprintf("uint value %d exceeds int64 range", n)}
 		}
-		return int64(n), nil
+		return int64(n), nil //nolint:gosec // G115: range-checked immediately above
 	case uint64:
 		if n > math.MaxInt64 {
 			return 0, &OverflowError{Op: "conversion", Detail: fmt.Sprintf("uint64 value %d exceeds int64 range", n)}
 		}
-		return int64(n), nil
+		return int64(n), nil //nolint:gosec // G115: range-checked immediately above
 	case uint32:
 		return int64(n), nil
 	case uint16:

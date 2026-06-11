@@ -87,7 +87,7 @@ func (e *Engine) buildCompileOptions() []expr.Option {
 		expr.Operator("/", "golem_div"),
 	)
 	if e.cfg.costLimit > 0 {
-		opts = append(opts, expr.MaxNodes(uint(e.cfg.costLimit)))
+		opts = append(opts, expr.MaxNodes(uint(e.cfg.costLimit))) //nolint:gosec // G115: costLimit > 0 enforced by the guard above
 	}
 	if e.cfg.timeout > 0 {
 		// Expose a context to cooperative custom functions; does NOT preempt
@@ -340,12 +340,12 @@ func toInt(v any) (int64, bool) {
 		if uint64(n) > math.MaxInt64 {
 			return 0, false
 		}
-		return int64(n), true
+		return int64(n), true //nolint:gosec // G115: range-checked immediately above
 	case uint64:
 		if n > math.MaxInt64 {
 			return 0, false
 		}
-		return int64(n), true
+		return int64(n), true //nolint:gosec // G115: range-checked immediately above
 	case uint32:
 		return int64(n), true
 	default:
