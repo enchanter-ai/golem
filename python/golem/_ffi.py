@@ -140,6 +140,14 @@ def eval_json(handle: int, src: str, vars_json: str) -> str:
 
 
 def free_engine(handle: int) -> None:
-    """Release the engine handle (and its compile cache). Best-effort."""
-    if _lib is not None and handle:
+    """Release the engine handle (and its compile cache). Best-effort.
+
+    Skipped during interpreter shutdown: ``Engine.__del__`` runs at finalization,
+    and calling into the Go c-shared runtime *while it is being torn down* can
+    segfault the process (observed as a rare SIGSEGV on darwin/arm64 AFTER the
+    test suite had already passed — the crash was in shutdown, not the tests).
+    At that point the OS reclaims the handle's memory regardless, so the native
+    call is both unsafe and unnecessary.
+    """
+    if _lib is not None and handle and not sys.is_finalizing():
         _lib.GolemFreeEngine(handle)
