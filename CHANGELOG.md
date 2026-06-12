@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-06-12
 
 Initial release of `golem` — a thin, idiomatic, production-hardened wrapper
 around [`expr-lang/expr`](https://github.com/expr-lang/expr).
