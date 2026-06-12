@@ -26,7 +26,7 @@ concurrency:
 env:
   # Pinned for reproducible wheel builds. cibuildwheel + gopy + goimports are version-locked.
   CIBUILDWHEEL_VERSION: '2.21.3'
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.22.12'
   GOPY_VERSION: 'v0.4.10'
   GOIMPORTS_VERSION: 'v0.25.0'
   PYBINDGEN_VERSION: '0.22.1'
@@ -77,8 +77,14 @@ jobs:
           output-dir: wheelhouse
         env:
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
-          # gopy + pybindgen must exist in the per-wheel build environment.
-          CIBW_BEFORE_BUILD: 'pip install pybindgen==${{ env.PYBINDGEN_VERSION }}'
+          # Per wheel: install pybindgen, then generate the per-ABI CPython
+          # extension with gopy from the Go core and let cibuildwheel package it.
+          # Runs from the repo root ({project}, where go.mod lives) and writes the
+          # extension into the python package dir ({package}/golem/_golem).
+          CIBW_BEFORE_BUILD: >-
+            pip install pybindgen==${{ env.PYBINDGEN_VERSION }} &&
+            cd {project} &&
+            gopy build -output={package}/golem/_golem -name=_golem -vm=python3 .
           # macOS arm64 cross/native target hint for the Go build.
           CIBW_ENVIRONMENT_MACOS: >-
             GOPY_TARGET_ARCH=${{ matrix.cibw_archs }}
@@ -127,7 +133,7 @@ jobs:
 
       - name: Install the prebuilt wheel
         shell: bash
-        run: pip install --no-index --find-links dist golem
+        run: pip install --no-index --find-links dist enchanter-golem
 
       - name: Run smoke test + parity tests
         shell: bash
