@@ -21,7 +21,7 @@ concurrency:
 
 env:
   # Single source of truth for the linter/analysis tool versions used across jobs.
-  GOLANGCI_LINT_VERSION: v1.61.0
+  GOLANGCI_LINT_VERSION: v2.12.2
   STATICCHECK_VERSION: 2024.1.1
   GOVULNCHECK_VERSION: v1.1.4
 
@@ -100,7 +100,7 @@ jobs:
           check-latest: true
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v9
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
 

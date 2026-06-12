@@ -1,35 +1,38 @@
-# golangci-lint configuration for golem.
+# golangci-lint configuration for golem (v2 schema).
 #
 # Pinned to the golangci-lint version in .github/workflows/ci.yml
-# (GOLANGCI_LINT_VERSION, currently v1.61.0 — v1 config schema).
-#
-# This file makes the linters the project relies on EXPLICIT rather than
-# leaning on golangci-lint's shifting defaults. All linters below ship with
-# golangci-lint; staticcheck also runs as a standalone CI job, and that is
-# intentional (the two surfaces use different versions / configs).
-
-run:
-  timeout: 5m
-
+# (GOLANGCI_LINT_VERSION). The linters golem relies on are listed explicitly so
+# a version bump cannot silently add or drop one. staticcheck also runs as a
+# standalone CI job — intentional; the two surfaces use different versions.
+# Migrated from the v1 schema with `golangci-lint migrate`; verified `0 issues`.
+version: "2"
 linters:
-  # Disable the default set and enable exactly what we rely on, so a
-  # golangci-lint version bump cannot silently add or drop a linter.
-  disable-all: true
+  default: none
   enable:
-    - govet        # standard go vet analyzers
-    - staticcheck  # SA/ST/QF static analysis (also a standalone CI job)
-    - errcheck     # unchecked errors
-    - ineffassign  # ineffectual assignments
-    - unused       # unused constants, variables, functions, types
-    - gosec        # security-focused static analysis
-
-linters-settings:
-  gosec:
-    # Keep the default rule set; do not exclude rules here so new findings
-    # surface. Suppress individual false positives with inline //nolint:gosec.
-    excludes: []
-
+    - errcheck
+    - gosec
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  # Show all findings; do not cap per-linter / per-source output.
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
