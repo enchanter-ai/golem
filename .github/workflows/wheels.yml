@@ -32,11 +32,13 @@ env:
   # Pinned for reproducible wheel builds.
   CIBUILDWHEEL_VERSION: '4.0.0'
   GO_VERSION: '1.22.12'
-  # Restrict to CPython 3.11–3.13. cibuildwheel supplies a CPython per build; the
-  # c-shared library is ABI-independent (cffi ABI mode), so one native build serves
-  # every cpXY wheel for a platform. Kept in lockstep with pyproject's
-  # build = "cp311-* cp312-* cp313-*" and requires-python = ">=3.11".
-  CIBW_SKIP: 'pp* *-musllinux* cp38-* cp39-* cp310-*'
+  # CPython 3.11–3.13 only (the c-shared lib is ABI-independent via cffi ABI mode,
+  # so one native build serves every cpXY wheel for a platform). The Python set is
+  # pinned by pyproject's `build = "cp311-* cp312-* cp313-*"`; this skip only drops
+  # musllinux, whose Alpine/musl toolchain our Go-into-manylinux build step does not
+  # target. (cibuildwheel 4.x already excludes PyPy and Python < 3.9, so listing
+  # pp*/cp38-* here is unnecessary and warns as a no-op.)
+  CIBW_SKIP: '*-musllinux*'
 
 jobs:
   build-wheels:

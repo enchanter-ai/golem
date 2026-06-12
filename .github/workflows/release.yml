@@ -29,9 +29,10 @@ env:
   # Pinned for reproducible builds; kept in lockstep with wheels.yml.
   CIBUILDWHEEL_VERSION: '4.0.0'
   GO_VERSION: '1.22.12'
-  # Restrict to CPython 3.11–3.13, in lockstep with pyproject's
-  # build = "cp311-* cp312-* cp313-*" and requires-python = ">=3.11".
-  CIBW_SKIP: 'pp* *-musllinux* cp38-* cp39-* cp310-*'
+  # CPython 3.11–3.13 only (pinned by pyproject's build = "cp311-* cp312-* cp313-*");
+  # this skip only drops musllinux, which our Go-into-manylinux build step doesn't
+  # target. cibuildwheel 4.x already excludes PyPy and Python < 3.9.
+  CIBW_SKIP: '*-musllinux*'
 
 jobs:
   build-wheels:
