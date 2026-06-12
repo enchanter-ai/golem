@@ -120,18 +120,28 @@ jobs:
           name: wheels-ubuntu-latest-x86_64
           path: dist
 
-      - name: Assert no Go toolchain is present
+      - name: Remove the runner's Go toolchain (simulate a Go-free machine)
         shell: bash
         run: |
+          # ubuntu-latest preinstalls Go; physically remove it so the install
+          # below genuinely proves the wheel needs no Go toolchain — not merely
+          # that one happens to be off PATH.
+          sudo rm -rf /usr/local/go /opt/hostedtoolcache/go || true
+          hash -r
           if command -v go >/dev/null 2>&1; then
-            echo "::error::a Go toolchain is unexpectedly present; smoke-test must run without one"
+            echo "::error::a Go toolchain is still present after removal; the no-Go proof is invalid"
             exit 1
           fi
           echo "confirmed: no Go toolchain on PATH"
 
-      - name: Install the prebuilt wheel
+      - name: Install the prebuilt wheel (golem from the local wheel only)
         shell: bash
-        run: pip install --no-index --find-links dist enchanter-golem
+        run: |
+          # cffi is a normal PyPI runtime dependency (pure-Python install, no
+          # C/Go toolchain). golem itself must come ONLY from the local wheel,
+          # so it is installed with --no-index to prove self-containment.
+          pip install cffi
+          pip install --no-index --find-links dist enchanter-golem
 
       - name: Run smoke test + parity tests
         shell: bash
