@@ -1,11 +1,16 @@
-# Wheels — build the gopy-generated Python binding into prebuilt binary wheels.
+# Wheels — build the cffi/c-shared Python binding into prebuilt binary wheels.
 # Authored by Enchanter Labs. MIT-licensed project.
 #
-# Pipeline: gopy emits the CPython extension from the Go core, then cibuildwheel packages
-# self-contained wheels for manylinux, macOS (x86_64 + arm64), and Windows so that
-# `pip install enchanter-golem` needs neither a Go toolchain nor a C compiler. A final smoke-test job
-# installs a built wheel on a runner with NO Go toolchain to prove the binding is fully
-# prebuilt. There is no maturin-for-Go, so gopy is invoked from cibuildwheel's before-build hook.
+# Pipeline: cibuildwheel builds golem's c-shared library (libgolem) from the Go core via
+# cgo in its before-build hook, then packages self-contained wheels for manylinux, macOS
+# (arm64), and Windows so that `pip install enchanter-golem` needs neither a Go toolchain
+# nor a C compiler. A final smoke-test job installs a built wheel on a runner with NO Go
+# toolchain to prove the binding is fully prebuilt.
+#
+# macOS: Apple-Silicon (arm64) wheels are published. Intel (x86_64) macOS prebuilt wheels
+# are deferred — the GitHub macos-13 Intel runner is being retired and no longer schedules
+# reliably; Intel-mac users install from the sdist, which builds the c-shared lib locally.
+# Universal2 / Intel wheels are a roadmap item.
 name: wheels
 
 on:
@@ -24,15 +29,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Pinned for reproducible wheel builds. cibuildwheel + gopy + goimports are version-locked.
+  # Pinned for reproducible wheel builds.
   CIBUILDWHEEL_VERSION: '2.21.3'
   GO_VERSION: '1.22.12'
-  GOPY_VERSION: 'v0.4.10'
-  GOIMPORTS_VERSION: 'v0.25.0'
-  PYBINDGEN_VERSION: '0.22.1'
-  # gopy needs a CPython for every wheel ABI; cibuildwheel supplies it per-build.
-  # Restrict to CPython 3.11–3.13 (gopy's supported range); gopy does not target
-  # PyPy. Skipping cp38/cp39/cp310 keeps this in lockstep with pyproject's
+  # Restrict to CPython 3.11–3.13. cibuildwheel supplies a CPython per build; the
+  # c-shared library is ABI-independent (cffi ABI mode), so one native build serves
+  # every cpXY wheel for a platform. Kept in lockstep with pyproject's
   # build = "cp311-* cp312-* cp313-*" and requires-python = ">=3.11".
   CIBW_SKIP: 'pp* *-musllinux* cp38-* cp39-* cp310-*'
 
@@ -40,6 +42,8 @@ jobs:
   build-wheels:
     name: wheels ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # A stuck multi-OS runner must fail fast, not hang until the next push cancels it.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -47,9 +51,6 @@ jobs:
           - os: ubuntu-latest      # manylinux x86_64
             cibw_archs: x86_64
             lib: libgolem.so
-          - os: macos-13           # macOS x86_64 (Intel runner)
-            cibw_archs: x86_64
-            lib: libgolem.dylib
           - os: macos-14           # macOS arm64 (Apple Silicon runner)
             cibw_archs: arm64
             lib: libgolem.dylib
@@ -58,10 +59,10 @@ jobs:
             lib: libgolem.dll
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
@@ -93,7 +94,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: 'CGO_ENABLED=1 PATH=$PATH:/usr/local/go/bin'
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.cibw_archs }}
           path: wheelhouse/*.whl
@@ -103,17 +104,18 @@ jobs:
     name: wheel smoke-test (no Go toolchain)
     needs: build-wheels
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Download Linux x86_64 wheels
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: wheels-ubuntu-latest-x86_64
           path: dist

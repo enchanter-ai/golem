@@ -160,7 +160,7 @@ pip install enchanter-golem      # the import stays `import golem`
 import golem
 ```
 
-`pip install enchanter-golem` is **fully self-contained.** Prebuilt binary wheels (manylinux / macOS x86+arm / Windows) are produced by CI via `cibuildwheel`, with the compiled Go core baked into each wheel as a native `c-shared` library (`libgolem`). The package's one runtime dependency, [`cffi`](https://cffi.readthedocs.io/), is pulled in automatically by pip. A Python user installs **nothing else** and **never needs Go or a C compiler** — the Go and C toolchains are used only at build time, inside CI. See [Using golem from Python](#using-golem-from-python-the-primary-interface) for the contract and limitations.
+`pip install enchanter-golem` is **fully self-contained.** Prebuilt binary wheels (manylinux x86_64 / macOS arm64 / Windows AMD64) are produced by CI via `cibuildwheel`, with the compiled Go core baked into each wheel as a native `c-shared` library (`libgolem`). The package's one runtime dependency, [`cffi`](https://cffi.readthedocs.io/), is pulled in automatically by pip. A Python user on those platforms installs **nothing else** and **never needs Go or a C compiler** — the Go and C toolchains are used only at build time, inside CI. (Intel macOS has no prebuilt wheel yet — the GitHub Intel runner is being retired — so it falls back to the sdist, which builds `libgolem` locally and does need Go; universal2 / Intel wheels are a roadmap item.) See [Using golem from Python](#using-golem-from-python-the-primary-interface) for the contract and limitations.
 
 ### Embedding the Go core directly (for Go services)
 

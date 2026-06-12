@@ -37,6 +37,8 @@ jobs:
   build-wheels:
     name: wheels ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # A stuck multi-OS runner must fail fast, not hang the release.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -44,9 +46,6 @@ jobs:
           - os: ubuntu-latest      # manylinux x86_64
             cibw_archs: x86_64
             lib: libgolem.so
-          - os: macos-13           # macOS x86_64 (Intel runner)
-            cibw_archs: x86_64
-            lib: libgolem.dylib
           - os: macos-14           # macOS arm64 (Apple Silicon runner)
             cibw_archs: arm64
             lib: libgolem.dylib
@@ -55,10 +54,10 @@ jobs:
             lib: libgolem.dll
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go ${{ env.GO_VERSION }}
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
@@ -90,7 +89,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: 'CGO_ENABLED=1 PATH=$PATH:/usr/local/go/bin'
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.cibw_archs }}
           path: wheelhouse/*.whl
@@ -101,10 +100,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -115,7 +114,7 @@ jobs:
           python -m build --sdist --outdir dist python
 
       - name: Upload sdist
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: dist/*.tar.gz
@@ -132,7 +131,7 @@ jobs:
       id-token: write   # required for OIDC Trusted Publishing
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           # All wheels-* and the sdist artifacts share dist/ as the flat
           # upload directory that gh-action-pypi-publish reads.
