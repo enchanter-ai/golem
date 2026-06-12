@@ -1,0 +1,17 @@
+# Normalize line endings across platforms to stop CRLF warnings.
+* text=auto eol=lf
+
+# Source and config files are LF-only text.
+*.go    text eol=lf
+*.py    text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+Makefile text eol=lf
+
+# Binary assets must never be normalized.
+*.png   binary
+*.so    binary
+*.dylib binary
+*.dll   binary

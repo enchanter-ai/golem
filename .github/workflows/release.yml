@@ -1,0 +1,155 @@
+# Release — build wheels + sdist on a version tag and publish to PyPI.
+# Authored by Enchanter Labs. MIT-licensed project.
+#
+# Triggered by pushing a tag matching 'v*' (e.g. v0.1.0). Reuses wheels.yml's
+# cibuildwheel matrix and the golemcapi c-shared build step (NOT gopy) to produce
+# self-contained wheels, builds a source distribution, and publishes everything to
+# PyPI via PyPI Trusted Publishing (OIDC) — no API token stored in the repo.
+#
+# Release checklist (do BEFORE tagging):
+#   1. Bump python/golem/__init__.py golem.__version__ AND the Go module tag in
+#      lockstep so the wheel version and the git tag agree.
+#   2. Update CHANGELOG.md with the new version's notes.
+#   3. Commit, then tag: git tag vX.Y.Z && git push origin vX.Y.Z
+#   The pushed tag fires this workflow; build-* must go green before publish runs.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Pinned for reproducible builds; kept in lockstep with wheels.yml.
+  CIBUILDWHEEL_VERSION: '2.21.3'
+  GO_VERSION: '1.22.12'
+  # Restrict to CPython 3.11–3.13, in lockstep with pyproject's
+  # build = "cp311-* cp312-* cp313-*" and requires-python = ">=3.11".
+  CIBW_SKIP: 'pp* *-musllinux* cp38-* cp39-* cp310-*'
+
+jobs:
+  build-wheels:
+    name: wheels ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest      # manylinux x86_64
+            cibw_archs: x86_64
+            lib: libgolem.so
+          - os: macos-13           # macOS x86_64 (Intel runner)
+            cibw_archs: x86_64
+            lib: libgolem.dylib
+          - os: macos-14           # macOS arm64 (Apple Silicon runner)
+            cibw_archs: arm64
+            lib: libgolem.dylib
+          - os: windows-latest     # Windows AMD64
+            cibw_archs: AMD64
+            lib: libgolem.dll
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.21.3
+        with:
+          package-dir: python
+          output-dir: wheelhouse
+        env:
+          CIBW_ARCHS: ${{ matrix.cibw_archs }}
+          # Per wheel: build golem's c-shared library from python/capi (Go + cgo)
+          # and let cibuildwheel package it next to the Python wrapper. Runs from
+          # the repo root ({project}, where go.mod lives) and writes the library
+          # into the package dir ({package}/golem/<lib>). The library is
+          # Python-version-independent (cffi ABI mode), so one build serves every
+          # cpXY wheel for the platform.
+          CIBW_BEFORE_BUILD: >-
+            cd {project} &&
+            go build -tags golemcapi -buildmode=c-shared
+            -o {package}/golem/${{ matrix.lib }} ./python/capi
+          # cgo requires a C compiler for -buildmode=c-shared (gcc on manylinux,
+          # clang on macOS, the runner's gcc/MinGW on Windows).
+          CIBW_ENVIRONMENT: 'CGO_ENABLED=1'
+          # manylinux image has no Go; install the pinned Go into the container.
+          CIBW_BEFORE_ALL_LINUX: >-
+            curl -sSL https://go.dev/dl/go${{ env.GO_VERSION }}.linux-amd64.tar.gz
+            | tar -C /usr/local -xz
+          CIBW_ENVIRONMENT_LINUX: 'CGO_ENABLED=1 PATH=$PATH:/usr/local/go/bin'
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.cibw_archs }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  build-sdist:
+    name: sdist
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build sdist
+        shell: bash
+        run: |
+          python -m pip install --upgrade build
+          python -m build --sdist --outdir dist python
+
+      - name: Upload sdist
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    # Trusted Publishing: GitHub mints a short-lived OIDC token that PyPI
+    # exchanges for upload rights. No PYPI_API_TOKEN secret lives in the repo.
+    environment: pypi
+    permissions:
+      id-token: write   # required for OIDC Trusted Publishing
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # All wheels-* and the sdist artifacts share dist/ as the flat
+          # upload directory that gh-action-pypi-publish reads.
+          path: dist
+          merge-multiple: true
+
+      - name: Publish to PyPI (Trusted Publishing / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          # Trusted Publishing needs no `password`; OIDC + the `pypi`
+          # environment authorize the upload.
+        # --- Fallback: API-token auth ---------------------------------------
+        # If Trusted Publishing is not configured for this project, comment out
+        # the `environment`/`id-token: write` lines above and supply a token by
+        # uncommenting the `with.password` line below (store the token as the
+        # PYPI_API_TOKEN repository/environment secret):
+        #   with:
+        #     packages-dir: dist
+        #     password: ${{ secrets.PYPI_API_TOKEN }}
