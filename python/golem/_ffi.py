@@ -85,11 +85,36 @@ def _lib_path() -> str:
     )
 
 
+def _harden_go_runtime_env() -> None:
+    """Disable Go's signal-based async preemption before the runtime starts.
+
+    golem's Go core ships as a ``-buildmode=c-shared`` library loaded into the
+    host CPython process. Go's runtime (1.14+) preempts goroutines with an
+    asynchronous SIGURG, driven by the background ``sysmon`` goroutine — so it
+    fires even though golem's own calls are synchronous and single-threaded.
+    Inside a foreign host, that signal can land during a cgo transition and
+    intermittently crash the process (observed as a rare SIGSEGV, worst on
+    darwin/arm64).
+
+    ``GODEBUG=asyncpreemptoff=1`` restricts preemption to cooperative
+    function-call safepoints. golem evaluates short expressions with no long
+    uninterruptible loops, so this has no practical scheduling cost. The Go
+    runtime reads GODEBUG when the library initializes (at ``dlopen``), so this
+    MUST run before :func:`_ffi.dlopen`. We merge rather than overwrite so a
+    user's existing GODEBUG settings are preserved.
+    """
+    godebug = os.environ.get("GODEBUG", "")
+    if "asyncpreemptoff=" in godebug:
+        return
+    os.environ["GODEBUG"] = f"{godebug},asyncpreemptoff=1" if godebug else "asyncpreemptoff=1"
+
+
 def _load():
     global _lib
     if _lib is None:
         with _lock:
             if _lib is None:
+                _harden_go_runtime_env()
                 _lib = _ffi.dlopen(_lib_path())
     return _lib
 
