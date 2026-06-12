@@ -398,101 +398,21 @@ golem is built and reasoned about under the same behavioral contract as every @e
 
 golem is a single Go core with a thin Python skin — the primary interface — over the *same* core. A caller — Python via the `cffi` binding, or a Go service embedding the core directly — enters through the public API (`Engine` / `Program`), which routes every evaluation through a fixed set of hardening layers before reaching the `expr-lang/expr` parser/checker/VM. The Python path differs only in that dynamic data crosses a type-tagged JSON envelope (`EvalJSON` / `NewEngineJSON`) into the identical Go core — there is no second evaluator.
 
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'background':'#0d1b2a','primaryColor':'#1b263b','primaryTextColor':'#e0e1dd','primaryBorderColor':'#4cc9f0','lineColor':'#4cc9f0','clusterBkg':'#0b132b','clusterBorder':'#4cc9f0','fontFamily':'ui-monospace, SFMono-Regular, monospace'}}}%%
-flowchart TD
-    subgraph bp[" "]
-        PyApp["Python app (primary)"] -->|"cffi to c-shared lib"| ENV["JSON envelope<br/>(EvalJSON / NewEngineJSON)"]
-        ENV --> API
-        GoApp["Go app (embedder)"] --> API
+<p align="center">
+  <img src="docs/assets/architecture.svg" alt="golem architecture — Python and Go callers through the public API and hardening layers into the expr-lang core" width="860">
+</p>
 
-        subgraph PUBLIC["golem public API"]
-            API["Engine / Program"]
-        end
-
-        API --> HARDEN
-
-        subgraph HARDEN["Hardening layers"]
-            CACHE["compile-cache<br/>(golang-lru/v2)"]
-            REG["function + math registry"]
-            NULLP["null / undefined policy"]
-            PANIC["panic boundary (safeRun)"]
-            ERRS["7 typed errors"]
-        end
-
-        HARDEN --> CORE
-
-        subgraph CORE["expr-lang/expr core"]
-            PARSER["parser"]
-            CHECKER["type-checker"]
-            VM["bytecode VM"]
-        end
-    end
-
-    style bp fill:#0d1b2a,stroke:#4cc9f0,color:#e0e1dd
-
-    classDef py fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
-    classDef envelope fill:#f4a261,stroke:#4cc9f0,color:#0d1b2a;
-    classDef go fill:#2a9d8f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef api fill:#2a9d8f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef cache fill:#7209b7,stroke:#4cc9f0,color:#e0e1dd;
-    classDef reg fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
-    classDef nullp fill:#2d6a4f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef panic fill:#7209b7,stroke:#4cc9f0,color:#e0e1dd;
-    classDef errs fill:#e76f51,stroke:#4cc9f0,color:#e0e1dd;
-    classDef parser fill:#2d6a4f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef checker fill:#264653,stroke:#4cc9f0,color:#e0e1dd;
-    classDef vm fill:#1b4332,stroke:#4cc9f0,color:#e0e1dd;
-
-    class PyApp py;
-    class ENV envelope;
-    class GoApp go;
-    class API api;
-    class CACHE cache;
-    class REG reg;
-    class NULLP nullp;
-    class PANIC panic;
-    class ERRS errs;
-    class PARSER parser;
-    class CHECKER checker;
-    class VM vm;
-```
+<sub>Diagram source: <a href="docs/assets/architecture.mmd">docs/assets/architecture.mmd</a> (rendered with mermaid-cli on a blueprint canvas).</sub>
 
 ### Compile-once / run-many flow
 
 The first time an expression is seen it misses the cache, so golem pays the full parse + type-check + compile cost once and stores the resulting `*vm.Program`. Every subsequent evaluation of the same source is a cache hit and runs only `expr.Run` over the reused program — the hot path.
 
-```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'background':'#0d1b2a','primaryColor':'#1b263b','primaryTextColor':'#e0e1dd','primaryBorderColor':'#4cc9f0','lineColor':'#4cc9f0','clusterBkg':'#0b132b','clusterBorder':'#4cc9f0','fontFamily':'ui-monospace, SFMono-Regular, monospace'}}}%%
-flowchart LR
-    subgraph bp[" "]
-        SRC["Compile(src)"] --> LOOK{"cache lookup"}
-        LOOK -->|"miss"| COMPILE["expr.Compile<br/>+ type-check"]
-        COMPILE --> STORE["cache *vm.Program"]
-        STORE --> PROG(["cached *vm.Program"])
-        LOOK -->|"hit"| PROG
-        PROG --> EVAL["Eval to expr.Run<br/>(hot path)"]
-        EVAL --> VAL(["Value / typed error"])
-    end
+<p align="center">
+  <img src="docs/assets/compile-flow.svg" alt="golem compile-once / run-many flow" width="780">
+</p>
 
-    style bp fill:#0d1b2a,stroke:#4cc9f0,color:#e0e1dd
-
-    classDef src fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
-    classDef lookup fill:#f4a261,stroke:#4cc9f0,color:#0d1b2a;
-    classDef compile fill:#2d6a4f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef store fill:#7209b7,stroke:#4cc9f0,color:#e0e1dd;
-    classDef prog fill:#2a9d8f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef eval fill:#2a9d8f,stroke:#4cc9f0,color:#e0e1dd;
-    classDef val fill:#e76f51,stroke:#4cc9f0,color:#e0e1dd;
-
-    class SRC src;
-    class LOOK lookup;
-    class COMPILE compile;
-    class STORE store;
-    class PROG prog;
-    class EVAL eval;
-    class VAL val;
-```
+<sub>Diagram source: <a href="docs/assets/compile-flow.mmd">docs/assets/compile-flow.mmd</a>.</sub>
 
 ## Dependency licenses
 

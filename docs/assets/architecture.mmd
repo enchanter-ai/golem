@@ -1,0 +1,44 @@
+%%{init: {'theme':'dark', 'themeVariables': {'primaryColor':'#1b263b','primaryTextColor':'#e0e1dd','primaryBorderColor':'#4cc9f0','lineColor':'#4cc9f0','clusterBkg':'#102a43','clusterBorder':'#4cc9f0','fontFamily':'ui-monospace, SFMono-Regular, monospace'}}}%%
+flowchart TD
+    PyApp["Python app (primary)"] -->|"cffi → c-shared lib"| ENV["JSON envelope<br/>(EvalJSON / NewEngineJSON)"]
+    ENV --> API
+    GoApp["Go app (embedder)"] --> API
+    subgraph PUBLIC["golem public API"]
+        API["Engine / Program"]
+    end
+    API --> HARDEN
+    subgraph HARDEN["Hardening layers"]
+        CACHE["compile-cache<br/>(golang-lru/v2)"]
+        REG["function + math registry"]
+        NULLP["null / undefined policy"]
+        PANIC["panic boundary (safeRun)"]
+        ERRS["7 typed errors"]
+    end
+    HARDEN --> CORE
+    subgraph CORE["expr-lang/expr core"]
+        PARSER["parser"]
+        CHECKER["type-checker"]
+        VM["bytecode VM"]
+    end
+    class PyApp py
+    class ENV envelope
+    class GoApp go
+    class API api
+    class CACHE cache
+    class REG reg
+    class NULLP nullp
+    class PANIC panic
+    class ERRS errs
+    class PARSER core
+    class CHECKER core
+    class VM core
+    classDef py fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
+    classDef envelope fill:#f4a261,stroke:#4cc9f0,color:#0d1b2a;
+    classDef go fill:#2a9d8f,stroke:#4cc9f0,color:#e0e1dd;
+    classDef api fill:#1d7874,stroke:#4cc9f0,color:#e0e1dd;
+    classDef cache fill:#7209b7,stroke:#4cc9f0,color:#e0e1dd;
+    classDef reg fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
+    classDef nullp fill:#2d6a4f,stroke:#4cc9f0,color:#e0e1dd;
+    classDef panic fill:#e76f51,stroke:#4cc9f0,color:#0d1b2a;
+    classDef errs fill:#bc4749,stroke:#4cc9f0,color:#e0e1dd;
+    classDef core fill:#264653,stroke:#4cc9f0,color:#e0e1dd;

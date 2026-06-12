@@ -1,0 +1,23 @@
+%%{init: {'theme':'dark', 'themeVariables': {'primaryColor':'#1b263b','primaryTextColor':'#e0e1dd','primaryBorderColor':'#4cc9f0','lineColor':'#4cc9f0','fontFamily':'ui-monospace, SFMono-Regular, monospace'}}}%%
+flowchart LR
+    SRC["Compile(src)"] --> LOOK{"cache lookup"}
+    LOOK -->|"miss"| COMPILE["expr.Compile<br/>+ type-check"]
+    COMPILE --> STORE["cache *vm.Program"]
+    STORE --> PROG(["cached *vm.Program"])
+    LOOK -->|"hit"| PROG
+    PROG --> EVAL["Eval → expr.Run<br/>(hot path)"]
+    EVAL --> VAL(["Value / typed error"])
+    class SRC src
+    class LOOK lookup
+    class COMPILE compile
+    class STORE store
+    class PROG prog
+    class EVAL eval
+    class VAL val
+    classDef src fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
+    classDef lookup fill:#f4a261,stroke:#4cc9f0,color:#0d1b2a;
+    classDef compile fill:#2d6a4f,stroke:#4cc9f0,color:#e0e1dd;
+    classDef store fill:#7209b7,stroke:#4cc9f0,color:#e0e1dd;
+    classDef prog fill:#2a9d8f,stroke:#4cc9f0,color:#e0e1dd;
+    classDef eval fill:#1d7874,stroke:#4cc9f0,color:#e0e1dd;
+    classDef val fill:#e76f51,stroke:#4cc9f0,color:#0d1b2a;
