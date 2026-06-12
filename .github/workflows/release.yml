@@ -27,7 +27,7 @@ concurrency:
 
 env:
   # Pinned for reproducible builds; kept in lockstep with wheels.yml.
-  CIBUILDWHEEL_VERSION: '2.21.3'
+  CIBUILDWHEEL_VERSION: '4.0.0'
   GO_VERSION: '1.22.12'
   # Restrict to CPython 3.11–3.13, in lockstep with pyproject's
   # build = "cp311-* cp312-* cp313-*" and requires-python = ">=3.11".
@@ -63,7 +63,7 @@ jobs:
           check-latest: true
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21.3
+        uses: pypa/cibuildwheel@v4.0.0
         with:
           package-dir: python
           output-dir: wheelhouse
