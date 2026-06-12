@@ -22,6 +22,8 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Enchanter Labs" }]
+# cffi loads the bundled c-shared library at runtime (ABI mode); no compiler needed to install.
+dependencies = ["cffi>=1.15"]
 keywords = ["expression", "evaluator", "expr-lang", "rules", "dsl", "sandbox"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -47,14 +49,14 @@ test = ["pytest>=7"]
 
 [tool.setuptools]
 # The importable package is `golem`, rooted at this directory (python/golem).
-packages = ["golem", "golem._golem"]
+packages = ["golem"]
 
 [tool.setuptools.dynamic]
 version = { attr = "golem.__version__" }
 
 [tool.setuptools.package-data]
-# Ship the compiled extension and any gopy-generated Python shims with the wheel.
-"golem._golem" = ["*.so", "*.pyd", "*.dll", "*.dylib", "*.py"]
+# Ship the compiled c-shared library (libgolem.{so,dylib,dll}) with the wheel.
+"golem" = ["*.so", "*.dylib", "*.dll"]
 
 # ---------------------------------------------------------------------------
 # cibuildwheel — prebuilt binary wheels for every target so `pip install enchanter-golem`

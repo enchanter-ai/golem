@@ -46,12 +46,16 @@ jobs:
         include:
           - os: ubuntu-latest      # manylinux x86_64
             cibw_archs: x86_64
+            lib: libgolem.so
           - os: macos-13           # macOS x86_64 (Intel runner)
             cibw_archs: x86_64
+            lib: libgolem.dylib
           - os: macos-14           # macOS arm64 (Apple Silicon runner)
             cibw_archs: arm64
+            lib: libgolem.dylib
           - os: windows-latest     # Windows AMD64
             cibw_archs: AMD64
+            lib: libgolem.dll
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -62,14 +66,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
 
-      - name: Install gopy toolchain
-        shell: bash
-        run: |
-          go install github.com/go-python/gopy@${{ env.GOPY_VERSION }}
-          go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-          # Expose the freshly-installed Go binaries to cibuildwheel's build hook.
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         with:
@@ -77,24 +73,24 @@ jobs:
           output-dir: wheelhouse
         env:
           CIBW_ARCHS: ${{ matrix.cibw_archs }}
-          # Per wheel: install pybindgen, then generate the per-ABI CPython
-          # extension with gopy from the Go core and let cibuildwheel package it.
-          # Runs from the repo root ({project}, where go.mod lives) and writes the
-          # extension into the python package dir ({package}/golem/_golem).
+          # Per wheel: build golem's c-shared library from python/capi (Go + cgo)
+          # and let cibuildwheel package it next to the Python wrapper. Runs from
+          # the repo root ({project}, where go.mod lives) and writes the library
+          # into the package dir ({package}/golem/<lib>). The library is
+          # Python-version-independent (cffi ABI mode), so one build serves every
+          # cpXY wheel for the platform.
           CIBW_BEFORE_BUILD: >-
-            pip install pybindgen==${{ env.PYBINDGEN_VERSION }} &&
             cd {project} &&
-            gopy build -output={package}/golem/_golem -name=_golem -vm=python3 .
-          # macOS arm64 cross/native target hint for the Go build.
-          CIBW_ENVIRONMENT_MACOS: >-
-            GOPY_TARGET_ARCH=${{ matrix.cibw_archs }}
-          # manylinux image ships Go via the before-build hook below (no Go preinstalled).
+            go build -tags golemcapi -buildmode=c-shared
+            -o {package}/golem/${{ matrix.lib }} ./python/capi
+          # cgo requires a C compiler for -buildmode=c-shared (gcc on manylinux,
+          # clang on macOS, the runner's gcc/MinGW on Windows).
+          CIBW_ENVIRONMENT: 'CGO_ENABLED=1'
+          # manylinux image has no Go; install the pinned Go into the container.
           CIBW_BEFORE_ALL_LINUX: >-
             curl -sSL https://go.dev/dl/go${{ env.GO_VERSION }}.linux-amd64.tar.gz
-            | tar -C /usr/local -xz &&
-            /usr/local/go/bin/go install github.com/go-python/gopy@${{ env.GOPY_VERSION }} &&
-            /usr/local/go/bin/go install golang.org/x/tools/cmd/goimports@${{ env.GOIMPORTS_VERSION }}
-          CIBW_ENVIRONMENT_LINUX: 'PATH=$PATH:/usr/local/go/bin:/root/go/bin'
+            | tar -C /usr/local -xz
+          CIBW_ENVIRONMENT_LINUX: 'CGO_ENABLED=1 PATH=$PATH:/usr/local/go/bin'
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

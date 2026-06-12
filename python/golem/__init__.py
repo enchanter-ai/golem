@@ -307,24 +307,10 @@ class Engine:
         cost_limit: Optional[int] = None,
         eval_timeout_ms: Optional[int] = None,
     ) -> None:
-        ext = _ffi.load_extension()
-
-        # Zero-config fast path: gopy can call the bare Go `New()` directly.
-        is_default = (
-            variables is None
-            and strict_vars is True
-            and cache_size is None
-            and cost_limit is None
-            and eval_timeout_ms is None
-        )
-        if is_default:
-            self._handle = ext.New()
-            return
-
-        # Configured path: the engine configuration carries a map[string]any
-        # schema and is built from variadic functional options, neither of
-        # which gopy marshals well — so we cross the configuration as a JSON
-        # string through the symmetric `NewEngineJSON` boundary (see _ffi.py).
+        # The engine configuration crosses the C boundary as a JSON string via
+        # GolemNewEngine / NewEngineJSON (see golem/_ffi.py). An options-only or
+        # empty string yields the default LOUD engine. The result is an opaque
+        # integer handle into the Go-side engine registry.
         options_json = _encode_options(
             variables=variables,
             strict_vars=strict_vars,
@@ -332,17 +318,7 @@ class Engine:
             cost_limit=cost_limit,
             eval_timeout_ms=eval_timeout_ms,
         )
-        new_json = getattr(ext, "NewEngineJSON", None)
-        if new_json is None:
-            # Surface the capability gap loudly; never silently drop the schema
-            # and hand back a lenient engine (that would defeat LOUD).
-            raise GolemError(
-                "golem: the installed Go core does not expose NewEngineJSON, "
-                "so a configured Engine cannot be constructed via the Python "
-                "binding. Rebuild against a core that includes the JSON "
-                "constructor boundary (see golem/_ffi.py)."
-            )
-        self._handle = new_json(options_json)
+        self._handle = _ffi.new_engine(options_json)
 
     def compile(self, source: str) -> Program:
         """Return a :class:`Program` for ``source``.
@@ -365,7 +341,7 @@ class Engine:
         golem exception on any failure.
         """
         vars_json = "" if not variables else json.dumps(dict(variables))
-        raw = self._handle.EvalJSON(source, vars_json)
+        raw = _ffi.eval_json(self._handle, source, vars_json)
         return _decode_envelope(raw)
 
     def eval_bool(
@@ -387,6 +363,14 @@ class Engine:
         self, source: str, variables: Optional[Mapping[str, Any]] = None
     ) -> str:
         return self.compile(source).eval_string(variables)
+
+    def __del__(self) -> None:  # release the Go-side engine handle + its cache
+        handle = getattr(self, "_handle", 0)
+        if handle:
+            try:
+                _ffi.free_engine(handle)
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
 
     def __repr__(self) -> str:  # pragma: no cover - cosmetic
         return "golem.Engine()"
