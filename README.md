@@ -64,6 +64,7 @@ Not for:
 ## Contents
 
 - [How It Works](#how-it-works)
+  - [Supported expressions](#supported-expressions)
 - [What Makes golem Different](#what-makes-golem-different)
 - [Install](#install)
 - [Quickstart](#quickstart)
@@ -96,6 +97,24 @@ The core innovation is **compile-once, run-many**: every distinct expression is 
 - **Loud** — a typo'd or undeclared top-level variable is a **compile error**, not a silent zero. Variable schemas turn the "always evaluates to 0" failure class into a build-time failure.
 
 North star: **zero silently-wrong evaluations in production.** No second evaluator, no parity drift between the Go and Python surfaces.
+
+### Supported expressions
+
+golem inherits the full `expr-lang/expr` grammar. An authored expression can use:
+
+- **Arithmetic** — `+ - * /`, integer modulo `%`, and unary minus, with the usual precedence.
+- **Parentheses** — explicit grouping, e.g. `2 + 3 * (x - 1)`.
+- **Variable lookup** — named identifiers resolved against the declared schema, e.g. `revenue * margin`.
+- **Common math** — a curated stdlib via `WithMathStdlib()` (`sqrt`, `abs`, `min`, `max`, `floor`, `ceil`, `round`, …).
+- **Booleans & comparisons** — `true` / `false`, `== != < <= > >=`.
+- **Logical operators** — `and` / `or` / `not` (and the `&& || !` spellings).
+- **Ternary conditional** — `cond ? a : b`, e.g. `score > 0.8 ? "promote" : "hold"`.
+- **Strings** — string literals, concatenation, comparison, and built-in string helpers.
+- **Inline `let` bindings** — name a sub-result for reuse, e.g. `let t = a + b; t * t`.
+- **Host functions** — Go-registered custom functions via `WithFunction(name, fn)`, e.g. `clamp(sqrt(area), 0, 100)`.
+- **Null handling** — null-coalescing `??` and optional chaining `?.`, so a missing member resolves predictably instead of panicking.
+
+A typo'd or undeclared **top-level** variable does not silently become `0` — it is a compile-time `UndefinedVariableError`. See [Null / undefined policy](#null--undefined-policy) for the strict-vs-lenient modes.
 
 ## What Makes golem Different
 
@@ -382,31 +401,35 @@ golem is a single Go core with a thin Python skin — the primary interface — 
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'background':'#0d1b2a','primaryColor':'#1b263b','primaryTextColor':'#e0e1dd','primaryBorderColor':'#4cc9f0','lineColor':'#4cc9f0','clusterBkg':'#0b132b','clusterBorder':'#4cc9f0','fontFamily':'ui-monospace, SFMono-Regular, monospace'}}}%%
 flowchart TD
-    PyApp["Python app (primary)"] -->|"cffi → c-shared lib"| ENV["JSON envelope<br/>(EvalJSON / NewEngineJSON)"]
-    ENV --> API
-    GoApp["Go app (embedder)"] --> API
+    subgraph bp[" "]
+        PyApp["Python app (primary)"] -->|"cffi to c-shared lib"| ENV["JSON envelope<br/>(EvalJSON / NewEngineJSON)"]
+        ENV --> API
+        GoApp["Go app (embedder)"] --> API
 
-    subgraph PUBLIC["golem public API"]
-        API["Engine / Program"]
+        subgraph PUBLIC["golem public API"]
+            API["Engine / Program"]
+        end
+
+        API --> HARDEN
+
+        subgraph HARDEN["Hardening layers"]
+            CACHE["compile-cache<br/>(golang-lru/v2)"]
+            REG["function + math registry"]
+            NULLP["null / undefined policy"]
+            PANIC["panic boundary (safeRun)"]
+            ERRS["7 typed errors"]
+        end
+
+        HARDEN --> CORE
+
+        subgraph CORE["expr-lang/expr core"]
+            PARSER["parser"]
+            CHECKER["type-checker"]
+            VM["bytecode VM"]
+        end
     end
 
-    API --> HARDEN
-
-    subgraph HARDEN["Hardening layers"]
-        CACHE["compile-cache<br/>(golang-lru/v2)"]
-        REG["function + math registry"]
-        NULLP["null / undefined policy"]
-        PANIC["panic boundary (safeRun)"]
-        ERRS["7 typed errors"]
-    end
-
-    HARDEN --> CORE
-
-    subgraph CORE["expr-lang/expr core"]
-        PARSER["parser"]
-        CHECKER["type-checker"]
-        VM["bytecode VM"]
-    end
+    style bp fill:#0d1b2a,stroke:#4cc9f0,color:#e0e1dd
 
     classDef py fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
     classDef envelope fill:#f4a261,stroke:#4cc9f0,color:#0d1b2a;
@@ -442,13 +465,17 @@ The first time an expression is seen it misses the cache, so golem pays the full
 ```mermaid
 %%{init: {'theme':'base', 'themeVariables': {'background':'#0d1b2a','primaryColor':'#1b263b','primaryTextColor':'#e0e1dd','primaryBorderColor':'#4cc9f0','lineColor':'#4cc9f0','clusterBkg':'#0b132b','clusterBorder':'#4cc9f0','fontFamily':'ui-monospace, SFMono-Regular, monospace'}}}%%
 flowchart LR
-    SRC["Compile(src)"] --> LOOK{"cache lookup"}
-    LOOK -->|"miss"| COMPILE["expr.Compile<br/>+ type-check"]
-    COMPILE --> STORE["cache *vm.Program"]
-    STORE --> PROG(["cached *vm.Program"])
-    LOOK -->|"hit"| PROG
-    PROG --> EVAL["Eval → expr.Run<br/>(hot path)"]
-    EVAL --> VAL(["Value / typed error"])
+    subgraph bp[" "]
+        SRC["Compile(src)"] --> LOOK{"cache lookup"}
+        LOOK -->|"miss"| COMPILE["expr.Compile<br/>+ type-check"]
+        COMPILE --> STORE["cache *vm.Program"]
+        STORE --> PROG(["cached *vm.Program"])
+        LOOK -->|"hit"| PROG
+        PROG --> EVAL["Eval to expr.Run<br/>(hot path)"]
+        EVAL --> VAL(["Value / typed error"])
+    end
+
+    style bp fill:#0d1b2a,stroke:#4cc9f0,color:#e0e1dd
 
     classDef src fill:#3a0ca3,stroke:#4cc9f0,color:#e0e1dd;
     classDef lookup fill:#f4a261,stroke:#4cc9f0,color:#0d1b2a;

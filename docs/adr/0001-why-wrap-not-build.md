@@ -42,10 +42,10 @@ directly onto golem's must-support list. **Decision: expr.** cel-go is the runne
 
 CEL's headline advantage is its **dual-implementation cross-language parity** (cel-go and
 cel-cpp/cel-python kept in lockstep). Under golem's architecture that advantage is **moot**: golem
-has exactly one core implementation (the Go engine), and the Python binding is `gopy`-generated over
-that same core. There is no second evaluator to keep in parity, so there is nothing for CEL's
-dual-impl machinery to buy us — parity is automatic because there is only one source of truth. That
-removes cel-go's only real edge, leaving expr's license, speed, and syntax to decide it.
+has exactly one core implementation (the Go engine), and the Python binding is a thin CGo c-shared +
+cffi layer over that same core. There is no second evaluator to keep in parity, so there is nothing
+for CEL's dual-impl machinery to buy us — parity is automatic because there is only one source of
+truth. That removes cel-go's only real edge, leaving expr's license, speed, and syntax to decide it.
 
 ## Consequences
 
@@ -56,7 +56,11 @@ removes cel-go's only real edge, leaving expr's license, speed, and syntax to de
   preferred primary guard.
 - The cache dependency is `hashicorp/golang-lru/v2` (MPL-2.0, a permissive file-level copyleft,
   compatible with golem's MIT), which is already goroutine-safe — so golem adds no redundant mutex.
-- **Fallback (documented, not implemented):** if gopy's dynamic-data path proves intractable, the
-  known alternative is a CGo `-buildmode=c-shared` + cffi layer carrying the same JSON-envelope
-  contract. This is recorded as a deliberate trade-off; v1 does not implement it, and we would HALT
-  and surface the specific blocker rather than silently switch.
+- **Python binding — ADR fallback invoked:** the original plan used `gopy` for the Python binding.
+  gopy proved unable to bind golem's `any`-rich API: its functional-option constructors and
+  `map[string]any` variable maps cannot cross the gopy boundary correctly. Rather than silently
+  degrading, we HALTed and invoked the documented fallback: a CGo `-buildmode=c-shared` + cffi layer
+  (`python/capi`, build tag `golemcapi`) that exposes a **string-only C ABI** (`GolemNewEngine`,
+  `GolemEvalJSON`, `GolemFreeEngine`, `GolemFreeString`) loaded at runtime via cffi in ABI mode. The
+  JSON-envelope contract is unchanged; the string-only boundary is the reason the envelope is the
+  right design, not a workaround. This is a vindication of the recorded trade-off, not a surprise.
